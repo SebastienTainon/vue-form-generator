@@ -2,7 +2,7 @@
 div.vue-form-generator(v-if='schema != null')
 	fieldset(v-if="schema.fields", :is='tag')
 		template(v-for='field in fields')
-			.form-group(v-if='fieldVisible(field)', :class='getFieldRowClasses(field)')
+			form-group(v-if='fieldVisible(field)', :class='getFieldRowClasses(field)', :validator="getFieldValidator(field.model)")
 				label(v-if="fieldTypeHasLabel(field)", :for="getFieldID(field)", :class="field.labelClasses")
 					| {{ field.label }}
 					span.help(v-if='field.help')
@@ -20,14 +20,14 @@ div.vue-form-generator(v-if='schema != null')
 		fieldset(:is='tag', :class='getFieldRowClasses(group)')
 			legend(v-if='group.legend') {{ group.legend }}
 			template(v-for='field in group.fields')
-				.form-group(v-if='fieldVisible(field)', :class='getFieldRowClasses(field)')
+				form-group(v-if='fieldVisible(field)', :class='getFieldRowClasses(field)', :validator="getFieldValidator(field.model)")
 					label(v-if="fieldTypeHasLabel(field)", :for="getFieldID(field)", :class="field.labelClasses")
 						| {{ field.label }}
 						span.help(v-if='field.help')
 							i.icon
 							.helpText(v-html='field.help')
 					.field-wrap
-						component(:is='getFieldType(field)', :disabled='fieldDisabled(field)', :model='model', :schema='field', :formOptions='options',@model-updated='modelUpdated', @validated="onFieldValidated")
+						component(:is='getFieldType(field)', :disabled='fieldDisabled(field)', :model='model', :schema='field', :formOptions='options', @model-updated='modelUpdated', @validated="onFieldValidated")
 						.buttons(v-if='buttonVisibility(field)')
 							button(v-for='btn in field.buttons', @click='buttonClickHandler(btn, field, $event)', :class='btn.classes') {{ btn.label }}
 					.hint(v-if='field.hint') {{ field.hint }}
@@ -39,6 +39,7 @@ div.vue-form-generator(v-if='schema != null')
 	// import Vue from "vue";
 	import { get as objGet, forEach, isFunction, isNil, isArray, isString } from "lodash";
 	import { slugifyFormID } from "./utils/schema";
+	import objectPath from "object-path";
 
 	// Load all fields from '../fields' folder
 	let fieldComponents = {};
@@ -129,6 +130,21 @@ div.vue-form-generator(v-if='schema != null')
 
 				return res;
 			}
+		},
+
+		validations() {
+			let res = {};
+			if (this.schema && this.schema.fields) {
+				forEach(this.schema.fields, (field) => {
+					if (field.model && field.validations) {
+						objectPath.set(res, field.model, field.validations);
+					}
+				});
+			}
+
+			return {
+				model: res,
+			};
 		},
 
 		watch: {
@@ -348,11 +364,17 @@ div.vue-form-generator(v-if='schema != null')
 				this.errors.splice(0);
 
 				forEach(this.$children, (child) => {
-					child.clearValidationErrors();
+					if (child.hasOwnProperty("clearValidationErrors")) {
+						child.clearValidationErrors();
+					}
 				});
 			},
 
-			modelUpdated(newVal, schema){
+			modelUpdated(newVal, schema) {
+				console.log('path', schema, objectPath.get(this.$v.model, schema));
+				if (objectPath.get(this.$v.model, schema)) {
+					objectPath.get(this.$v.model, schema).$touch();
+				}
 				this.$emit("model-updated", newVal, schema);
 			},
 
@@ -368,6 +390,10 @@ div.vue-form-generator(v-if='schema != null')
 			getFieldID(schema) {
 				const idPrefix = this.options && this.options.fieldIdPrefix ? this.options.fieldIdPrefix : "";
 				return slugifyFormID(schema, idPrefix);
+			},
+
+			getFieldValidator(schema) {
+				return objectPath.get(this.$v.model, schema);
 			}
 		}
 	};
