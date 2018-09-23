@@ -99,7 +99,12 @@ div.vue-form-generator(v-if='schema != null')
 				validator: function (value) {
 					return value.length > 0;
 				}
-			}
+			},
+
+			disabled: {
+				type: Boolean,
+				default: false,
+			},
 		},
 
 		data () {
@@ -233,6 +238,9 @@ div.vue-form-generator(v-if='schema != null')
 
 			// Get disabled attr of field
 			fieldDisabled(field) {
+				if (this.disabled)
+					return true;
+
 				if (isFunction(field.disabled))
 					return field.disabled.call(this, this.model, field, this);
 
